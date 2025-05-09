@@ -4,10 +4,28 @@ from dotenv import load_dotenv
 import os
 
 
-def is_shorten_link(url):
+def is_shorten_link(token, url):
     parsed_url = urlparse(url)
-    return parsed_url.netloc.endswith('vk.cc') or parsed_url.netloc.endswith('vk.com')
-
+    if not parsed_url.netloc.endswith('vk.cc'):
+        return False
+    
+    try:
+        api_url = "https://api.vk.com/method/utils.checkLink"
+        params = {
+            "v": "5.199",
+            "access_token": token,
+            "url": url
+        }
+        response = requests.get(api_url, params=params)
+        response.raise_for_status()
+        response_data = response.json()
+        
+        if "error" in response_data:
+            return False
+            
+        return response_data.get("response", {}).get("status") == "ok"
+    except requests.exceptions.RequestException:
+        return False
 
 def shorten_link(token, long_url):
     api_url = "https://api.vk.com/method/utils.getShortLink"
@@ -19,12 +37,12 @@ def shorten_link(token, long_url):
     }
     response = requests.get(api_url, params=params)
     response.raise_for_status()
-    json_response = response.json()
+    response_data = response.json()
     
-    if "error" in json_response:
-        raise RuntimeError(f"VK API error: {json_response['error']}")
+    if "error" in response_data:
+        raise RuntimeError(f"VK API error: {response_data['error']}")
     
-    return json_response["response"]["short_url"]
+    return response_data["response"]["short_url"]
 
 
 def count_clicks(token, short_url):
@@ -37,12 +55,12 @@ def count_clicks(token, short_url):
     }
     response = requests.get(api_url, params=params)
     response.raise_for_status()
-    json_response = response.json()
+    response_data = response.json()
     
-    if "error" in json_response:
-        raise RuntimeError(f"VK API error: {json_response['error']}")
+    if "error" in response_data:
+        raise RuntimeError(f"VK API error: {response_data['error']}")
     
-    stats = json_response["response"]["stats"]
+    stats = response_data["response"]["stats"]
     return sum(day["views"] for day in stats)
 
 
@@ -58,7 +76,7 @@ def main():
         if not input_url:
             raise ValueError("URL не может быть пустым")
 
-        if is_shorten_link(input_url):
+        if is_shorten_link(token, input_url):
             clicks = count_clicks(token, input_url)
             print(f"Количество кликов: {clicks}")
         else:
